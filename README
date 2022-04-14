@@ -1,0 +1,394 @@
+* It's a roughly comment about clojure errors, things clojure cannot do, solutions of them, or such like that.
+* Easy and difficult things isn't and won't separated.
+* All of them have been repled but it would have some mistakes (it maybe comes in editing).
+* This text would have mistakes about English as written by a non-native. If you don't get it, it would be attributed to it.
+* Clojure 1.10.0 / openjdk / Ubuntu
+* EPL
+
+
+
+*** 1
+(update {:a 1} :a "2")
+;; => java.lang.String cannot be cast to clojure.lang.IFn
+
+   This is a bit of cryptic at the first glance.
+   (where/who/what did it try to cast?)
+
+   This would be interpreted such like:
+
+Expected: clojure.lang.IFn
+Actual: java.lang.String
+
+
+
+*** 2
+(get {:1 1} [1]) ;; => nil
+
+   This returns nil (not an error).
+   get returns nil
+   when no value (tied in a passed key) exists.
+
+   Moreover,
+   clojure's hashmap can take a vector AS a key
+   such like:
+
+(get {[1] 1} [1]) ;; => 1
+
+   However,
+   it cannot be that a vector IS a key.
+
+(get {:[1 2] 1} [1 2])
+(get {:[1 2] 1} :[1 2])
+(get {:[1 2] 1} (keyword [1 2]))
+
+   These three spit the same error:
+
+;; => Caused by java.lang.RuntimeException Invalid token: :
+
+
+
+*** 3
+(map inc 1) ;; => Don't know how to create ISeq from: java.lang.Long
+
+   This can be interpreted as:
+
+Expected : ISeq which is vector, list, or such like that.
+Actual: java.lang.Long which isn't seq apparently.
+
+   The cause of this error is similar to *1
+   but the error message is not.
+   
+   *1 shows a type of arg actually passed at the left side,
+   *3 shows at the right side.
+
+
+
+*** 4
+([1 2] 2) ;; => java.lang.IndexOutOfBoundsException (No message)
+([1 2] 1) ;; => 2
+
+   Collections in clojure except list
+   is also able to use as a find function.
+   The second example is equal to
+   
+(get [1 2] 1)
+
+   But this usage of vector works differently of others,
+   map and set,
+   in the case that no corresponded value exists.
+
+   In other cases,
+   the following expressions are the spec
+   and return nil.
+
+({:1 1 :2 2} 3)
+({:1 1 :2 2} :3)
+(#{1 2} 3)
+
+   They doesn't cause OutOfBounds.
+
+
+
+*** 4.1
+
+   Bonus.
+   It can be.
+
+(map [1 2 3] [0 0 0]) ;; => (1 1 1)
+(map #{1 2 3} [1 2 4]) ;; => (1 2 nil)
+(map {:a 1 :b 2} [:a :b :c]) ;; => (1 2 nil)
+
+
+
+*** 5
+((list 1 2) 0) ;; => clojure.lang.PersistenteList cannot be cast to clojure.lang.IFn
+
+   It is about *4.
+   Vector as a function isn't the same action
+   compared to map and set,
+   but list can be used as a function in the first place.
+
+
+
+*** 6
+((mapv inc [1 2 3]) 0) ;; => 2
+((map  inc [1 2 3]) 0) ;; => clojure.lang.LazySeq cannot be cast to clojure.lang.IFn
+
+   it is about *4 and *5.
+
+
+
+*** 7
+(str (map inc [1 2])) ;; => "clojure.lang.LazySeq@402"
+(list? (map inc [1 2])) ;; => false
+(list? '(2 3)) ;; => true
+
+   We would expect the last behavior
+   in the case 1 and 2 as well.
+
+   The type map will return is LazySeq,
+   not list.
+
+   If what we want is a result of something
+   which went through map (not mapv),
+   I suggest you to use (into '() ..) instead
+   to force evaluate a LazySeq as casting it to list.
+
+(list? (into '() (map inc [1 2]))) ;; => true
+
+   or we can use (seq (doall ..))
+
+(str (seq (doall (map inc [1 2])))) ;; => "(2 3)"
+
+   As I mentioned above,
+   mapv doesn't have the same issue,
+   because it is casted into a vec automatically.
+
+(vector? (mapv inc [1 2])) ;; => true
+
+   You can refer the answer posted by Rich Hickey
+   about LazySeq.
+   > https://stackoverflow.com/questions/1641626/how-to-convert-lazy-sequence-to-non-lazy-in-clojure
+
+
+
+*** 8
+(list? `(+ 1 2)) ;; => false
+(list? '(+ 1 2)) ;; => true
+
+   We would stumble when writing a macro.
+   Use seq? instead.
+
+(seq? `(+ 1 2))  ;; => true
+(seq? '(+ 1 2))  ;; => true
+
+
+
+*** 9
+(if [] true false)  ;; => true
+(if '() true false) ;; => true
+(if {} true false)  ;; => true
+(if nil true false) ;; => false
+[(nil? []) (nil? '()) (nil? {})] ;; => [false false false]
+
+   It would make a confusion especially for common-lisper.
+   (if my memory is a collect, an empty list is evaluated as false in CL)
+   Use seq instead.
+
+(if (seq []) true false) ;; => false
+(if (not (empty? [])) true false) ;; => false
+
+
+
+*** 10
+(get (list 1 2) 0) ;; => nil
+
+   Use `nth` instead.
+
+(nth (list 1 2) 0) ;; => 1
+
+   It also be useful for vector.
+
+(nth [1 2] 0) ;; => 1
+
+   But not for map.
+   Maybe we doesn't do this though.
+
+(nth {:1 1 :2 2} 1) ;; => nth not supported on this type: PersistentArrayMap
+(nth {:1 1} :1)     ;; => clojure.lang.Keyword cannot be cast to java.lang.Number
+
+
+
+*** 11
+`(map inc ~@(remove even? [2 4 6])) ;; => (map inc)
+
+   .. (namespace is trimed for reading)
+   It isn't an error even if we want so.
+
+(map inc) ;; => #function[clojure.core/map/fn--5847]
+
+   When we use filter/remove or something
+   which can return an empty seq in macrocontext
+   and get an oversight,
+   it could cause an error difficult to debug.
+
+   (map inc) returns a function
+   which will take a coll for future.
+   It is opened for such like:
+
+(transduce (comp (map inc) (map #(* -1 %))) str [1 2 3]) ;; => "-2-3-4"
+
+   To learn the details, search about transduce.
+
+
+
+*** 12
+(defmacro aa []
+  `(let [a 1]
+     (inc a)))
+
+   It can success to define
+   but can't execute
+   because 
+
+(aa) ;; => Call to clojure.core/let did not conform to spec.
+
+   In woods of error dumps,
+   we can find simple-symbol?.
+   Pick and try it.
+
+(simple-symbol? '+) ;; => true
+(simple-symbol? \`+) ;; => false
+'+ ;; => +
+`+ ;; => clojure.core/+
+
+   This explains the reason of error above.
+   Backquote complements args with namespace automatically.
+   And see now this let part.
+
+(macroexpand-1 '(aa)) ;; => (clojure.core/let [yourprojname.name/a 1] (clojure.core/inc yourprojname.name/a))
+
+   'a sym in a let-part is complemented
+   against our will and cause the error.
+   We cast it as a normal sym with simple quote.
+
+(defmacro aa []
+  `(let [~'a 1]
+     (inc ~'a)))
+
+(aa) ;; => 2
+
+   When we do that in let-form
+   but forget (inc ~'a) and write as (inc a),
+   it will occur another error:
+
+No such var: yourprojname.name/a.
+
+   Plus,
+   you don't intend to write anaphoric macro,
+   of course we can use gensym/#.
+
+(defmacro aa []
+  `(let [a# 1]
+     (inc a#)))
+(aa) ;; => 2
+
+
+
+*** 13
+(defmacro bb []
+  `(let [a# 1]
+     `(let [b# 1]
+        (inc ~a#))))
+(bb) ;; => (clojure.core/let [yourprojname.name/b__6062__auto__ 1] (clojure.core/inc 1))
+
+   Already seen
+   and it is a failure as we expect.
+
+(defmacro cc []
+  (bb)) ;; or (eval (bb))
+(cc) ;; => Call to clojure.core/let did not conform to spec.
+
+   Here is another usage of ~'.
+
+(defmacro dd []
+  `(let [a# 1]
+     `(let [~'b# 2]
+        (+ ~a# ~'b#))))
+
+   b# will be expanded to b__auto__something
+   but it will instantly be complemented
+   with the second `.
+
+   Use ~' to evade it,
+   then the both ` is solved.
+
+(dd) ;; => (clojure.core/let [b__6121__auto__ 2] (clojure.core/+ 1 b__6121__auto__))
+(eval (dd)) ;; => 3
+
+
+
+*** 14
+
+  case 1
+
+(defmacro ee [x]
+  (let [incx (inc x)]
+    `(let [a# 2]
+       `(let [~'c# 3]
+          `(+ ~a# ~~~incx)))))
+(eval (ee 1)) ;; => No such var: yourprojname.name/a__3548__auto
+
+   vs
+
+(defmacro eee [x]
+  (let [incx (inc x)]
+    `(let [a# 2]
+       `(let [~'c# 3]
+          `(+ ~~a# ~~~incx)))))
+(eval (eee 1)) ;; => (clojure.core/+ 2 2)
+
+  ~~a# cancels two ` and 
+  finally it climbs up to
+  the let-form in which a# is binded.
+
+  case 2
+
+(defmacro eeee [x]
+  (let [incx (inc x)]
+    `(let [a# 2]
+       `(let [~'c# 3
+              ~'b# 4]
+          `(+ ~'b# ~~~incx)))))
+(eval (eeee 1)) ;; => (clojure.core/+ yourprojname.name/b__6437__auto__ 2)
+
+   vs
+
+(defmacro eeee [x]
+  (let [incx (inc x)]
+    `(let [a# 2]
+       `(let [~'c# 3
+              ~'b# 4]
+          `(+ ~~'b# ~~~incx)))))
+(eval (eeee 1)) ;; => (clojure.core/+ 4 2)
+
+   Now ~'b# is defined in an upper floor
+   than a place we want to refer ~'b#.
+   Add more one ~ and fix an context.
+
+   case 1 and 2,
+   both can be defined well but cannot refer
+   so it is easy to be an oversight.
+
+
+
+*** 15
+(def a (atom nil))
+(set! a 1) ;; => Can't change/establish root binding of: a with set
+(reset! a 1) ;; => 1
+(swap! a 1) ;; =>  java.lang.Long cannot be cast to clojure.lang.IFn
+
+   I often forget it.
+
+
+
+*** 16
+(def b nil)
+(reset! b 1) ;; =>  java.lang.NullPointerException .. (No message)
+(def c 0)
+(reset! c 1) ;; => java.lang.Long cannot be cast to clojure.lang.IAtom`
+
+   Both are a silly error
+   but the error messages aren't the same.
+
+
+
+*** 17
+((fn [a] a) 1 2) ;; => Wrong number of args (2) passed to:
+
+   At the first time I saw it,
+   I didn't get what this (2) actually means.
+   
+   As an example above,
+   (2) means the "actual" number of args we passed,
+   NOT the "expected" number a function wants to take.
