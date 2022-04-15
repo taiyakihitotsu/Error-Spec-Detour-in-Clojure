@@ -106,7 +106,7 @@ Actual: java.lang.Long which isn't seq apparently.
    It is about *4.
    Vector as a function isn't the same action
    compared to map and set,
-   but list can be used as a function in the first place.
+   but list cannot be used as a function in the first place.
 
 
 
