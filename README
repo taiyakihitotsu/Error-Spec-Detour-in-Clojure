@@ -131,14 +131,35 @@ Actual: java.lang.Long which isn't seq apparently.
 
    If what we want is a result of something
    which went through map (not mapv),
-   I suggest you to use (into '() ..) instead
+   I suggest you to use (into '() ..) or (seq (doall ..) ..) instead
    to force evaluate a LazySeq as casting it to list.
 
 (list? (into '() (map inc [1 2]))) ;; => true
-
-   or we can use (seq (doall ..))
-
 (str (seq (doall (map inc [1 2])))) ;; => "(2 3)"
+
+   Both are well casted but
+   I recommend (seq (doall ..) ..)
+   because a return of (into '() (list ..)) is reversed.
+   
+(seq (doall (map inc (list 1 2 3)))) ;; => (2 3 4)
+(into '() (map inc (list 1 2 3))) ;; => (4 3 2)
+   
+   When we pass a not-seq value
+   to (seq (doall ..)) or (into '() ..)
+   with a miss (which would occur in macro),
+   the error message will come like this:
+
+(seq (doall 1)) ;; => Don't know how to create ISeq from: java.lang.Long
+
+   Check a dump in which we can find the lines:
+
+..
+core.clj: number-of-line  clojure.core/seq
+core.clj: number-of-line  clojure.core/dorun
+core.clj: number-of-line  clojure.core/doall
+..
+
+   They imply we would've missed about that.
 
    As I mentioned above,
    mapv doesn't have the same issue,
