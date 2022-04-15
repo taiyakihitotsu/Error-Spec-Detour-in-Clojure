@@ -126,7 +126,7 @@ Actual: java.lang.Long which isn't seq apparently.
    We would expect the last behavior
    in the case 1 and 2 as well.
 
-   The type map will return is LazySeq,
+   The type which map will return is LazySeq,
    not list.
 
    If what we want is a result of something
@@ -139,7 +139,7 @@ Actual: java.lang.Long which isn't seq apparently.
 
    Both are well casted but
    I recommend (seq (doall ..) ..)
-   because a return of (into '() (list ..)) is reversed.
+   because a return of (into '() (list ..)) is a reversed list.
    
 (seq (doall (map inc (list 1 2 3)))) ;; => (2 3 4)
 (into '() (map inc (list 1 2 3))) ;; => (4 3 2)
@@ -147,7 +147,7 @@ Actual: java.lang.Long which isn't seq apparently.
    When we pass a not-seq value
    to (seq (doall ..)) or (into '() ..)
    with a miss (which would occur in macro),
-   the error message will come like this:
+   this error message will come:
 
 (seq (doall 1)) ;; => Don't know how to create ISeq from: java.lang.Long
 
@@ -160,6 +160,8 @@ core.clj: number-of-line  clojure.core/doall
 ..
 
    They imply we would've missed about that.
+   And this number-of-line wouldn't be actually correspond to
+   any line in our buffer.
 
    As I mentioned above,
    mapv doesn't have the same issue,
@@ -235,7 +237,7 @@ core.clj: number-of-line  clojure.core/doall
 
    (map inc) returns a function
    which will take a coll for future.
-   It is opened for such like:
+   It is opened for such this usage:
 
 (transduce (comp (map inc) (map #(* -1 %))) str [1 2 3]) ;; => "-2-3-4"
 
@@ -378,8 +380,8 @@ No such var: yourprojname.name/a.
    Add more one ~ and fix an context.
 
    case 1 and 2,
-   both can be defined well but cannot refer
-   so it is easy to be an oversight.
+   both can be defined well but cannot refer then get an error
+   so it is easy to become our oversight.
 
 
 
